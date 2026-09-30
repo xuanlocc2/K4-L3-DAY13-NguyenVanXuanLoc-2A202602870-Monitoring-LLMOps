@@ -7,7 +7,7 @@
 - **Họ và tên:** Nguyễn Văn Xuân Lộc
 - **MSSV:** 2A202602870
 - **Lớp:** K4-L3B
-- **Repository URL:** https://github.com/xuanlocc2/K4-L3-Day13-NguyenVanXuanLoc-2A202602870-Monitoring-LLMOps
+- **Repository URL:** https://github.com/xuanlocc2/K4-L3-DAY13-NguyenVanXuanLoc-2A202602870-Monitoring-LLMOps
 - **Commit SHA cuối:**
 - **Challenge ID:**
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602870`
