@@ -42,7 +42,7 @@ def line(df: pd.DataFrame, cols: list[str], title: str, unit: str, threshold: fl
     """Biểu đồ theo phút + đường threshold (st.line_chart không vẽ được threshold)."""
     long = df[["minute", *cols]].melt("minute", var_name="series", value_name="value")
     base = alt.Chart(long).encode(
-        x=alt.X("minute:T", title="UTC"),
+        x=alt.X("minute:T", title="UTC", scale=alt.Scale(type="utc")),
         y=alt.Y("value:Q", title=unit),
         color=alt.Color("series:N", title=None),
         tooltip=["minute:T", "series:N", "value:Q"],
