@@ -7,7 +7,15 @@ primary_slo:
     total_event: 'event == "request_received"'
   target_percent: 99.5
   error_budget_percent: 0.5
-  note: Học viên phải giải thích hoặc điều chỉnh ngưỡng bằng baseline của mình. Ví dụ nếu có 10,000 request trong cửa sổ 28 ngày, error budget 0.5% nghĩa là tối đa 50 request được phép không đạt SLO.
+  note: |
+    Giữ ngưỡng 3000 ms và 99.5% (khớp threshold P95 trong config/dashboard.yaml).
+    Baseline đo được trên fake LLM: P95 latency ~150 ms, TTFT P95 ~50 ms, error rate 0%,
+    nên SLO có dư địa lớn ~20x; ngưỡng 3000 ms là mức người dùng còn chấp nhận được, không phải mức hiện tại.
+    Error budget = 100% - 99.5% = 0.5% số request trong 28 ngày.
+    Ví dụ: 10,000 request/28 ngày -> tối đa 50 request được phép lỗi hoặc chậm hơn 3000 ms.
+    Theo thời gian: 28d x 24h x 60 = 40,320 phút x 0.5% ~ 201 phút "xấu" cho phép.
+    Lưu ý: practice rag_slow chỉ cộng ~2.5 s (latency ~2.65 s) nên KHÔNG làm vỡ SLO 3000 ms;
+    vì vậy alert HighLatencyP95 đặt ngưỡng sớm hơn (2000 ms) để bắt được suy giảm trước khi ăn error budget.
 guardrails:
   error_rate_pct_max: 2
   daily_cost_usd_max: 2.5

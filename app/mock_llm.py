@@ -5,6 +5,12 @@ import time
 from dataclasses import dataclass
 
 from .incidents import STATE
+from .tracing import get_langfuse_client, observe
+
+
+def estimate_cost(tokens_in: int, tokens_out: int) -> float:
+    # USD: $3 / 1M input tokens, $15 / 1M output tokens
+    return round((tokens_in / 1_000_000) * 3 + (tokens_out / 1_000_000) * 15, 6)
 
 
 @dataclass
@@ -25,6 +31,7 @@ class FakeLLM:
     def __init__(self, model: str = "claude-sonnet-4-5") -> None:
         self.model = model
 
+    @observe(name="llm-generation", as_type="generation", capture_input=False, capture_output=False)
     def generate(self, prompt: str) -> FakeResponse:
         started = time.perf_counter()
         time.sleep(0.05)  # mô phỏng thời điểm token đầu tiên sẵn sàng
@@ -37,6 +44,15 @@ class FakeLLM:
         answer = (
             "Starter answer. You should improve this output logic and add better quality checks. "
             "Use retrieved context and keep responses concise."
+        )
+        # Không gửi input/output thô (có thể chứa PII); prompt version được link qua propagate_attributes ở agent.
+        get_langfuse_client().update_current_generation(
+            model=self.model,
+            usage_details={"input": input_tokens, "output": output_tokens},
+            cost_details={
+                "input": estimate_cost(input_tokens, 0),
+                "output": estimate_cost(0, output_tokens),
+            },
         )
         return FakeResponse(
             text=answer,

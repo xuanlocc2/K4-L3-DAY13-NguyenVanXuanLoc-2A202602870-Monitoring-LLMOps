@@ -4,13 +4,13 @@
 
 ## 1. Thông tin học viên
 
-- **Họ và tên:**
-- **MSSV:**
+- **Họ và tên:** Nguyễn Văn Xuân Lộc
+- **MSSV:** 2A202602870
 - **Lớp:** K4-L3B
-- **Repository URL:**
+- **Repository URL:** https://github.com/xuanlocc2/K4-L3-Day13-NguyenVanXuanLoc-2A202602870-Monitoring-LLMOps
 - **Commit SHA cuối:**
 - **Challenge ID:**
-- **Tên project Langfuse cá nhân:** `day13-k4-l3b-<MSSV>`
+- **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602870`
 
 ## 2. Evidence index
 
@@ -37,38 +37,38 @@
 
 | Nội dung | Baseline | Kết quả cuối | Nhận xét |
 |---|---|---|---|
-| `validate_logs.py` | | | |
-| `validate_dashboard.py` | | | |
-| `pytest` | | | |
-| Số traces hợp lệ | | | |
-| Số PII leak | | | |
-| Latency P95 / TTFT P95 | | | |
-| Retrieval success rate | | | |
+| `validate_logs.py` | 30/100 (21 record, 20 thiếu trường, 0 correlation ID) | 100/100: 95 record, 38 correlation ID, 0 PII leak, 0 thiếu trường | Đủ 4 tiêu chí: schema, correlation ID, enrichment, PII |
+| `validate_dashboard.py` | HỢP LỆ 6/6 (contract, chưa có dashboard thật) | HỢP LỆ 6/6 panel | `scripts/dashboard.py` khớp `config/dashboard.yaml` |
+| `pytest` | 22 passed | 26 passed | Thêm test PII cho CCCD, thẻ, passport, chuỗi sạch |
+| Số traces hợp lệ | 0 | ≥ 13 trace `prompt_source=langfuse` (12 baseline v1, 1 candidate v2) | Mỗi trace có 3 observation: agent, retrieval, generation |
+| Số PII leak | 0 (validator; load test mẫu không chứa PII, `scrub_event` chưa bật) | 0 | Scrub chạy trước bước ghi file |
+| Latency P95 / TTFT P95 | 151 ms / 50 ms (10 response) | 1387 ms / 51 ms (38 response) | Dưới SLO 3000 ms; P95 bị kéo lên bởi 1 request 4241 ms lúc server lấy prompt lần đầu |
+| Retrieval success rate | 100% | 100% | Trên mọi event có `tool_success` |
 
 ## 4. Logging và PII
 
-- **Cách tạo/nhận và truyền correlation ID:**
-- **Các metadata được ghi vào structured log:**
-- **Cách bảo đảm PII được scrub trước khi ghi:**
-- **Cách kiểm chứng kết quả:**
+- **Cách tạo/nhận và truyền correlation ID:** Middleware (`app/middleware.py`) xóa contextvars, đọc header `x-request-id`; nếu khớp regex `^req-[0-9a-f]{8}$` thì dùng, không thì sinh `req-<8 hex>`. ID được bind vào structlog contextvars nên mọi log line của request đều mang nó, lưu vào `request.state`, truyền vào agent/trace, và trả lại qua header `x-request-id`.
+- **Các metadata được ghi vào structured log:** `service`, `event`, `ts` (UTC), `level`, `correlation_id`, `env`, `model`, `feature`, `session_id`, `user_id_hash` (hash, không ghi user_id thô). Event `response_sent` thêm `latency_ms`, `ttft_ms`, `tokens_in`, `tokens_out`, `cost_usd`, `quality_score`, `tool_name`, `tool_success`.
+- **Cách bảo đảm PII được scrub trước khi ghi:** Processor `scrub_event` trong `app/logging_config.py` được đặt trước `JsonlFileProcessor` (bước ghi file), nên dữ liệu đã che mới xuống đĩa. Rule trong `app/pii.py` gồm email, điện thoại VN, CCCD, thẻ thanh toán và passport VN.
+- **Cách kiểm chứng kết quả:** `pytest` (26 test, gồm các định dạng phone/thẻ), `validate_logs.py` (100/100, 0 PII leak, dùng detector độc lập) và ảnh `05-pii-redaction.png`: gửi email, số điện thoại, CCCD, thẻ giả rồi kiểm tra dòng log có `[REDACTED_*]`.
 
 ## 5. Tracing và prompt versioning
 
-- **Cách xác nhận traces do chính tôi tạo trong project cá nhân:**
-- **Cấu trúc root/retrieval/generation observations:**
-- **Cách nối trace với log:**
-- **Prompt name:**
-- **Version/label baseline:**
-- **Version/label candidate:**
-- **Trace ID của mỗi version:**
-- **Cách promote và rollback `production`:**
+- **Cách xác nhận traces do chính tôi tạo trong project cá nhân:** Key Langfuse của chính tôi nằm trong `.env` (không commit); trace mang `correlation_id` trùng với log cục bộ và tôi đọc lại được bằng API `v2/observations` với key đó.
+- **Cấu trúc root/retrieval/generation observations:** Root `lab-agent-run` (agent) chứa `retrieval` (retriever) và `llm-generation` (generation, có model, `usage_details` và `cost_details`).
+- **Cách nối trace với log:** `correlation_id` được ghi vào metadata của trace và có trong mọi dòng log; lấy ID từ log rồi tìm trong Langfuse Search.
+- **Prompt name:** `day13-chat`
+- **Version/label baseline:** v1 / `baseline`
+- **Version/label candidate:** v2 / `candidate`
+- **Trace ID của mỗi version:** v1: `fae3e5626a4cf9201702e23c07425a6b` (`req-b36ab629`); v2: `06f2addcd850d19657e4304b315d2d00` (`req-3bbf6148`)
+- **Cách promote và rollback `production`:** Trên Langfuse, gán label `production` cho v2 (promote) rồi gán lại cho v1 (rollback); không cần sửa code. App cache prompt khoảng 60 giây nên cần restart API để nhận label mới. Ảnh: `evidence/09-prompt-versions.png`, `evidence/10-prompt-rollback.png`.
 
 ## 6. Dashboard, SLO và alerts
 
-- **Dashboard và sáu panel:**
-- **SLO và lý do chọn:**
-- **Cách tính error budget:**
-- **Ba alert và runbook tương ứng:**
+- **Dashboard và sáu panel:** `scripts/dashboard.py` (Streamlit, venv riêng) đọc `data/logs.jsonl`, tự refresh, có đường threshold đỏ. Sáu panel: latency (P50/P95/P99 + TTFT), traffic, errors + retrieval success, cost, tokens, quality. Ảnh: `evidence/11-dashboard-overview.png`.
+- **SLO và lý do chọn:** 99.5% request có latency ≤ 3000 ms. Baseline P95 ≈ 150 ms nên có đệm, và kịch bản `rag_slow` (≈2.65 s) vẫn chưa vi phạm SLO nhưng đã vượt ngưỡng cảnh báo 2000 ms.
+- **Cách tính error budget:** SLO 99.5% nghĩa là budget 0.5%. Với 10,000 request, tối đa 50 request được phép lỗi hoặc chậm hơn 3000 ms; trong 28 ngày tương đương khoảng 201 phút.
+- **Ba alert và runbook tương ứng:** `HighLatencyP95` (P95 > 2000 ms, 5 phút, warning), `HighErrorRateOrRetrievalFailure` (error rate > 2% hoặc retrieval success < 90%, 5 phút, critical), `CostPerRequestSpike` (cost/request > 0.005 USD, 10 phút, warning). Cả ba gửi Slack `#k4-l3b-alerts`, owner `student-2A202602870`, runbook trong `docs/alerts.md` theo luồng Metrics → Logs → Traces.
 
 > Ví dụ cách viết error budget: "SLO 99.5% trong 28 ngày nghĩa là error budget 0.5%. Nếu workload có 10,000 request thì tối đa 50 request được phép lỗi hoặc chậm hơn ngưỡng SLO."
 
